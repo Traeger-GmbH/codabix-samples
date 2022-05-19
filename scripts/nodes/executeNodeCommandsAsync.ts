@@ -7,6 +7,7 @@
 // the output arguments are already set to different values (for the other method call). This
 // behavior is expected to be improved in a future Codabix version, so that then
 // the output argument values can be read reliably.
+// 
 runtime.handleAsync(async function () {
     // Find the method node.
     let methodNode = codabix.findNode("/Nodes/MyMethod", true);
