@@ -16,15 +16,27 @@ runtime.handleAsync(async function () {
     // written into the node, even if the new value is the same as the previous one.
     let forceUpdate = false;
 
-    // Create the subscription. Note: To actually process the values delivered by the subscription
-    // here, we would need to add a ValueChanged EventListener to the nodes.
+    // Create the subscription.
     let subscription = codabix.subscribeNodes([nodeA, nodeB], interval, forceUpdate);
     logger.log(`Subscription created. Interval=${subscription.interval}, ForceUpdate=${subscription.forceUpdate}`);
 
+    // To actually process the values delivered by the subscription (and possibly by synchronous
+    // reads) here, we will also need to add a ValueChanged EventListener to the nodes.
+    let valueChangeListener: codabix.NodeValueChangedEventListener = e => {
+        logger.log(`Value changed: Old=${e.oldValue}, New=${e.newValue}`);
+    };
+
+    // Since we already created a subscription by ourselves, we do not need an implicit
+    // subscription.
+    nodeA.addValueChangedEventListener(valueChangeListener, false);
+
     // To later remove the subscription, use the unsubscribe method. Also, if the script is
-    // forced to stop (e.g. when disabling it), all subscriptions it has created are
-    // automatically stopped.
+    // forced to stop (e.g. when disabling it), all subscriptions (and event listeners) it has
+    // created are automatically stopped.
     await timer.delayAsync(60 * 1000);
+
     codabix.unsubscribeNodes(subscription);
+    nodeA.removeValueChangedEventListener(valueChangeListener);
+
     logger.log("Subscription stopped.");
 }());
