@@ -1,0 +1,73 @@
+import * as signalR from "@microsoft/signalr";
+import { NodeId, ReadNode, CreateNode } from './types.js';
+import { NodeQueryIdentifier } from './node.js';
+import { IUpdateNode } from './update-node.js';
+import { INodeChildrenChanges, INodePropertyChanges, INodeValueChanges } from './receive-changes.js';
+import { INodeValue, INodeValueStatus } from './node-value.js';
+import { IContinuationPoint } from './parameters.js';
+import { clientState } from './clientState.js';
+export declare class Client {
+    constructor(host: string);
+    connect(usernameOrToken: string, password?: string): Promise<void>;
+    private startConnection;
+    private onClosed;
+    disconnect(): Promise<void>;
+    private wait;
+    private changeState;
+    onConnecting(callback: (error?: Error) => void): void;
+    onConnected(callback: (error?: Error) => void): void;
+    onDisconnecting(callback: (error?: Error) => void): void;
+    onDisconnected(callback: (error?: Error) => void): void;
+    onReconnecting(callback: (error?: Error) => void): void;
+    onReconnected(callback: (error?: Error) => void): void;
+    private applyConnectionSettings;
+    readNode(id: NodeQueryIdentifier): Promise<ReadNode>;
+    readNodes(ids: Array<NodeQueryIdentifier>): Promise<ReadNode[]>;
+    createNode(node: CreateNode): Promise<NodeId>;
+    createNodes(nodes: Array<CreateNode>): Promise<Array<{
+        status: number;
+        id: NodeId;
+        clientRef: any;
+    }>>;
+    deleteNode(id: NodeQueryIdentifier): Promise<void>;
+    updateNode(id: NodeQueryIdentifier, node: IUpdateNode): Promise<void>;
+    linkNode(id: NodeQueryIdentifier, destinationId: NodeQueryIdentifier): Promise<void>;
+    readChildNodes(id: NodeQueryIdentifier): Promise<ReadNode>;
+    subscribeValueChanges(ids: Array<NodeQueryIdentifier>, createSubscription?: boolean, interval?: number, forceUpdate?: boolean): signalR.IStreamResult<INodeValueChanges>;
+    subscribePropertyChanges(...ids: Array<NodeQueryIdentifier>): signalR.IStreamResult<INodePropertyChanges>;
+    subscribeChildrenChanges(...ids: Array<NodeQueryIdentifier>): signalR.IStreamResult<INodeChildrenChanges>;
+    writeNodeValue(id: NodeQueryIdentifier, value: INodeValue | any): Promise<INodeValueStatus>;
+    writeNodeValues(nodeValuePairs: Array<{
+        id: NodeQueryIdentifier;
+        value: INodeValue | any;
+    }>): Promise<Array<INodeValueStatus>>;
+    readNodeValue(id: NodeQueryIdentifier, performRead?: boolean, timeToLive?: number): Promise<INodeValue>;
+    readNodeValueHistory(id: NodeQueryIdentifier, start: Date, end: Date, timeInterval?: number, limit?: number, continuationPoint?: IContinuationPoint): Promise<{
+        values: Array<INodeValue>;
+        continuationPoint: IContinuationPoint | null;
+    }>;
+    readNodesValueHistory(ids: Array<NodeQueryIdentifier>, start: Date, end: Date, timeInterval: number, limit?: number, continuationPoint?: IContinuationPoint): Promise<{
+        values: Array<Array<INodeValue>>;
+        continuationPoint: IContinuationPoint | null;
+    }>;
+    private handleError;
+    private static generateErrorMessage;
+    get state(): clientState;
+    get reconnectDelay(): number;
+    set reconnectDelay(value: number);
+    private isCancellationRequested;
+    private host;
+    private username;
+    private password;
+    private authToken;
+    private connection;
+    private clientState;
+    private delay;
+    private onConnectingHandler;
+    private onConnectedHandler;
+    private onReconnectingHandler;
+    private onReconnectedHandler;
+    private onDisconnectedHandler;
+    private onDisconnectingHandler;
+}
+export * from './types.js';

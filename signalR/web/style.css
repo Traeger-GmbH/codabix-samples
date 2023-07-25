@@ -1,0 +1,40 @@
+html {
+  width: 100%;
+  height: 100%;
+}
+body {
+  background: linear-gradient(to left,lightblue,lightgreen);
+  background-repeat: no-repeat;
+  background-size: cover;
+  font-family: "Arial";
+}
+
+#node {
+  display: flex;
+  flex-direction: row;
+}
+
+#node-value-integer {
+  margin-left: 0.5em;
+  font-weight: 700;
+}
+
+#node-value-string {
+  margin-left: 0.5em;
+  font-weight: 700;
+}
+
+#node-value-single {
+  margin-left: 0.5em;
+  font-weight: 700;
+}
+
+#node-value-boolean {
+  margin-left: 0.5em;
+  font-weight: 700;
+}
+
+#node-value-dateTime {
+  margin-left: 0.5em;
+  font-weight: 700;
+}
