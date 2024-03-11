@@ -16,3 +16,7 @@ Here you will find sample scripts you can use in our I4.0 middleware Codabix.
 ![open_script_screenshot](https://github.com/Traeger-GmbH/codabix-samples/assets/54576581/6b68628c-d135-469d-a5f3-a73d6386a230)
 
 5. Now you just need to replace the default code in the script file with the code copied earlier from one of the examples.
+
+6. To start the script, you must check the "Go Live" box at the bottom right and then click on "OK".
+
+![golive_screenshot](https://github.com/Traeger-GmbH/codabix-samples/assets/54576581/f35559ff-8117-4f5c-8539-2621727e8789)
