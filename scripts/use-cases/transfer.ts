@@ -371,7 +371,24 @@ runtime.handleAsync(async function () {
             { name: "Outputs", nodeType: codabix.NodeTypeEnum.Folder, valueType: null, defaultValue: null },
             { name: "Triggers", nodeType: codabix.NodeTypeEnum.Folder, valueType: null, defaultValue: null },
             { name: "isActive", nodeType: codabix.NodeTypeEnum.Value, valueType: codabix.TypeCodeEnum.Boolean, defaultValue: false },
-        ]
+        ];
+
+        private static collectChildrenRecursively(node: codabix.Node): codabix.Node[] {
+            let collectedChildren: codabix.Node[] = [];
+
+            for (let child of node.children) {
+                if (child.type == codabix.NodeTypeEnum.Folder) {
+                    // Recursively collect the child nodes of the folder.
+                    collectedChildren = collectedChildren.concat(
+                        Transfer.collectChildrenRecursively(child));
+                }
+                else {
+                    collectedChildren.push(child);
+                }
+            }
+
+            return collectedChildren;
+        }        
 
         private handleIsActivePropertyChange: codabix.NodeValueChangedEventListener = (e: NodeValueChangedEventArg): void => {
             if (e.oldValue == null || e.oldValue.value as boolean == false) {
@@ -413,11 +430,13 @@ runtime.handleAsync(async function () {
         }
 
         private get inputs(): Array<codabix.Node> {
-            return this._children.Inputs.children;
+            // Recursively collect the non-folder nodes.
+            return Transfer.collectChildrenRecursively(this._children.Inputs);
         }
 
         private get outputs(): Array<codabix.Node> {
-            return this._children.Outputs.children;
+            // Recursively collect the non-folder nodes.
+            return Transfer.collectChildrenRecursively(this._children.Outputs);
         }
 
         private handleTriggerEvent = (acknowlede: (this: void) => void): void => {
