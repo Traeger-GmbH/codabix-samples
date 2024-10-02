@@ -53,7 +53,7 @@ declare namespace codabix {
 
     /**
      * Contains functions related to configuring nodes in the Codabix Web Configuration.
-     **/
+     */
     namespace nodeconfiguration {
         enum ContextMenuActionInheritanceFilter {
             FolderNodes = 1 << 0,
@@ -76,7 +76,7 @@ declare namespace codabix {
         interface ContextMenuAction {
             /**
              * The display name which is shown as context menu entry.
-             **/
+             */
             displayName: string;
 
             /**
@@ -89,7 +89,7 @@ declare namespace codabix {
 
             /**
              * If `null` or `undefined`, the action will be shown only for the original node. Otherwise, the action will be shown for the original node and its children when they meet the specified node type filter.
-             **/
+             */
             inheritanceFilter?: ContextMenuActionInheritanceFilter | null;
         }
 
@@ -125,9 +125,11 @@ declare namespace codabix {
         function unregisterNodeContextMenuAction(node: Node, action: ContextMenuAction): void;
     }
 
-
-    type NodeValueType = null | boolean | boolean[] | number | number[] | string | string[] | Date | Date[] | Object | Object[];
-    type NodePathType = null | boolean | boolean[] | number | number[] | string | string[] | Date | Date[] | Object | Object[];
+    // With the introduction of the Variant type, an array can now also contain elements
+    // of different types.
+    type NodeValuePrimitiveType = null | boolean | number | string | Date | Blob | Object;
+    type NodeValueType = NodeValuePrimitiveType | boolean[] | number[] | string[] | Date[] | Blob[] | Object[] | NodeValuePrimitiveType[];
+    type NodePathType = NodeValueType;
 
     enum NodeValueStatusCodeEnum {
         Good = 0x0,
@@ -143,7 +145,7 @@ declare namespace codabix {
     enum TypeCodeEnum {
         // Basic types
         String = 10,
-        Blob = 11, // Blob values will currently be represented as Base64 string
+        Blob = 11,
         Null = 20,
         Boolean = 21,
         SByte = 22,
@@ -158,7 +160,8 @@ declare namespace codabix {
         Double = 31,
         DateTime = 32,
         TimeSpan = 33,
-        Object = 100
+        Object = 100,
+        Variant = 150
     }
 
     enum NodeTypeEnum {
@@ -172,22 +175,22 @@ declare namespace codabix {
     enum NodeHistoryOptions {
         /**
          * A history value is never created for the node.
-         **/
+         */
         Inactive = 0,
 
         /**
          * When a (non-`null`) `HistoryInterval` is set on the node, a history value is created at that interval by a background timer; otherwise, a history value is created when writing a value to the node.
-         **/
+         */
         Active = 1,
 
         /**
          * A history value is created according to the rules of `Active`, but only if the new value is different from the previous history value.
-         **/
+         */
         ValueChange = 2 | Active,
 
         /**
          * A history value is created according to the rules of `Active`, and additionally a subscription shall be created which will read the underlying device values in a regular interval.
-         **/
+         */
         Subscription = 4 | Active
     }
 
@@ -220,7 +223,7 @@ declare namespace codabix {
          * Specifies if the new value can actually be considered to be different than the old value.
          * 
          * This uses the same mechanism as the `codabix.NodeValue.equals()` method.
-         **/
+         */
         readonly isValueChanged: boolean;
         readonly source: boolean | number | string | object | null;
     }) => void;
@@ -265,6 +268,9 @@ declare namespace codabix {
         historyOptions?: NodeHistoryOptions;
         historyInterval?: number | null;
         historyResolution?: number | null;
+        maxHistoryValues?: number | null;
+        maxHistoryAge?: number | null;
+        isReadOnly?: boolean;
     }
 
     // When creating a node, some of the properties are required. Therefore we extend
@@ -335,8 +341,21 @@ declare namespace codabix {
     }
 
     interface NodeCommandContext {
-        readonly inputArguments: readonly Readonly<NodeArgument>[];
-        readonly outputArguments: readonly NodeArgument[];
+        readonly inputArguments: readonly Readonly<NodeArgument>[] & {
+            /**
+             * Gets the input argument with the specified name, or returns `undefined` if it cannot be found.
+             * @param name The name of the input argument.
+             */
+            get(name: string): Readonly<NodeArgument> | undefined;
+        };
+
+        readonly outputArguments: readonly NodeArgument[] & {
+            /**
+             * Gets the output argument with the specified name, or returns `undefined` if it cannot be found.
+             * @param name The name of the output argument.
+             */
+            get(name: string): NodeArgument | undefined;
+        };
     }
 
     interface NodeCommand {
@@ -370,9 +389,9 @@ declare namespace codabix {
          * @param description
          * @param value
          */
-        constructor(name: string, displayName: string, description: string, value: string);
+        constructor(name: string, displayName: string, description: string, value: string | null);
 
-        readonly value: string;
+        readonly value: string | null;
     }
 
     class TypeField extends TypeMember {
@@ -465,6 +484,7 @@ declare namespace codabix {
         readonly double: Type;
         readonly datetime: Type;
         readonly timespan: Type;
+        readonly variant: Type;
         readonly stringArray: Type;
         readonly blobArray: Type;
         readonly booleanArray: Type;
@@ -480,10 +500,48 @@ declare namespace codabix {
         readonly doubleArray: Type;
         readonly datetimeArray: Type;
         readonly timespanArray: Type;
+        readonly variantArray: Type;
         readonly password: Type;
         readonly passwordBlob: Type;
     }
     const Types: Types;
+
+    /**
+     * Represents a BLOB (binary large object) value that can be stored in a node with value type 'Blob'. 
+     * The `Blob` instance is read-only.
+     **/
+    class Blob {
+        // Declare a unused private variable to enforce nominal typing.
+        private _;
+        // Declare a private constructor to prevent constructing the class.
+        private constructor();
+
+        /**
+         * Creates a new Blob instance from an `ArrayBuffer`.
+         **/
+        public static fromArrayBuffer(buffer: ArrayBuffer, mediaType?: string | null, fileName?: string | null): Blob;
+
+        /**
+         * Creates a new Blob instance from an Base64 string.
+         **/
+        public static fromBase64String(base64String: string, mediaType?: string | null, fileName?: string | null): Blob;
+
+        public readonly length: number;
+        public readonly fileName: string | null;
+        public readonly mediaType: string | null;
+
+        /**
+         * Converts the `Blob` instance to a new `ArrayBuffer`.
+         * 
+         * Note: Because a `Blob` is read-only, a new `ArrayBuffer` instance will be created every time when this function is called.
+         * */
+        public toArrayBuffer(): ArrayBuffer;
+
+        /**
+         * Converts the `Blob` instance to a Base64 string.
+         **/
+        public toBase64String(): string;
+    }
 
     class Object {
         constructor(type: Type);
@@ -613,6 +671,8 @@ declare namespace codabix {
         readonly historyOptions: NodeHistoryOptions;
         readonly historyInterval: number | null;
         readonly historyResolution: number | null;
+        readonly maxHistoryValues: number | null;
+        readonly maxHistoryAge: number | null;
         /**
          * The path of the node, which is used by devices like the S7 Device as variable address.
          * Note that this is not the same as the "node path" that can be retrieved using Node.getNodePath().
@@ -623,6 +683,13 @@ declare namespace codabix {
         readonly valueType: Type | null;
         readonly position: number;
         readonly token: string;
+
+        /***
+         * Specifies whether the node is read-only. When `true`, the node cannot be updated (e.g. with `codabix.updateNode()`,
+         * except when also updating `isReadOnly` to `false`), cannot be (un-)linked (e.g. with `codabix.linkNode()`), and
+         * no new values can be written to it.
+         */
+        readonly isReadOnly: boolean;
 
         /**
          * The current value of this node, or null if it doesn't have a value.
@@ -771,7 +838,7 @@ declare namespace codabix {
     function readNodeHistoryValuesAsync(node: Node, startTime?: Date | null, endTime?: Date | null, maxCount?: number | null): Promise<(NodeValue & {
         /**
          * Contains the date/time when this value was captured in Codabix.
-         **/
+         */
         receiveTimestamp: Date;
     })[]>;
 
@@ -915,9 +982,9 @@ declare namespace timer {
      * 
      * Returns a TimerHandle for use with clearTimeout().
      * @param callback The function which should be called back.
-     * @param timeout The timeout in milliseconds.
+     * @param delay The delay in milliseconds.
      */
-    function setTimeout(callback: (this: void) => void, timeout: number): number;
+    function setTimeout(callback: (this: void) => void, delay: number): number;
 
     /**
      * Cancels a timer that has been created with the setInterval() method.
@@ -933,9 +1000,9 @@ declare namespace timer {
     /**
      * Delays execution asynchronously by returning a Promise which will be fulfilled after the specified milliseconds have passed.
      * This can be used in an async function using `await timer.delayAsync(...)`.
-     * @param timeout The timeout in milliseconds.
+     * @param delay The delay in milliseconds.
      */
-    function delayAsync(milliseconds: number): Promise<void>;
+    function delayAsync(delay: number): Promise<void>;
 
     /**
      * Interrupts execution asynchronously by returning a Promise which will be fulfilled after the current script execution is finished (and the current NodeLock is released).
@@ -1040,10 +1107,10 @@ declare namespace io {
         function getFileName(filePath: string): string;
 
         /**
-         * Returns the directory information for the specified path string (the path without the file name).
+         * Returns the directory information for the specified path string (the path without the file name), or `null` if the path denotes a root directory.
          * @param filePath The path of a file.
          */
-        function getDirectoryName(filePath: string): string;
+        function getDirectoryName(filePath: string): string | null;
     }
 
     /**
@@ -1142,17 +1209,33 @@ declare namespace io {
         function writeAllTextAsync(path: string, content: string, includeBom?: boolean, failIfExists?: boolean): Promise<void>;
 
         /**
-         * Opens a text file using UTF-8 encoding and returns a `FileReader` instance that can be used to read the file.
+         * Reads all bytes from the file.
+         *
+         * Note: The function will fail if the file size exceeds 500 MiB.
+         * @param path The path of the file to read.
+         */
+        function readAllBytesAsync(path: string): Promise<ArrayBuffer>;
+
+        /**
+         * Writes the bytes in the specified `ArrayBuffer` to the file.
+         * @param path The path of the file to write.
+         * @param arrayBuffer The `ArrayBuffer` containing the bytes to write.
+         * @param failIfExists `true` to throw an exception if the file already exists, `false` to overwrite it in that case. The default is `false`.
+         */
+        function writeAllBytesAsync(path: string, arrayBuffer: ArrayBuffer, failIfExists?: boolean): Promise<void>;
+
+        /**
+         * Opens a text file using UTF-8 encoding and returns a `Reader` instance that can be used to read the file.
          * 
-         * Note: You need to close the `FileReader` when you are finished with reading the file.
+         * Note: You need to close the `Reader` when you are finished with reading the file.
          * @param path The path of the file to open.
          */
         function openReaderAsync(path: string): Promise<Reader>;
 
         /**
-         * Opens a text file using UTF-8 encoding and returns a `FileWriter` instance that can be used to write to the file.
+         * Opens a text file using UTF-8 encoding and returns a `Writer` instance that can be used to write to the file.
          * 
-         * Note: You need to close the `FileWriter` when you are finished with writing to the file.
+         * Note: You need to close the `Writer` when you are finished with writing to the file.
          * @param path The path of the file to open.
          * @param append If `true`, the file is opened in "append" mode (which means the new content will be appended to existing files). If `false`, an existing file (if present) will be overwritten, unless `failIfExists` is `true`. The default is `false`.
          * @param includeBom If `true`, the writer includes a UTF-8 Byte Order Mark when creating a new file. The default is `false`.
@@ -1249,6 +1332,138 @@ declare namespace io {
             closeAsync(): Promise<void>;
         }
     }
+
+    namespace storagemodel {
+        enum StorageEntryType {
+            Item,
+            Container
+        }
+
+        /**
+         * A storage entry is an abstract representation of a storage element, which can be a container (like a directory) or an item (like a file).
+         * 
+         * Non-async methods don't involve any I/O and will complete immediately, whereas async methods will involve I/O and might take a short time to complete.
+         */
+        class StorageEntry {
+            // Declare a unused private variable to enforce nominal typing.
+            private _;
+            // Declare a private constructor to prevent constructing the class.
+            private constructor();
+
+            /**
+             * Gets the name of the storage entry, for example the file name.
+             */
+            readonly name: string;
+
+            /**
+             * Gets a value that indicates whether this entry represents a container entry (like a directory) or an item entry (like a file).
+             */
+            readonly type: StorageEntryType;
+
+            /**
+             * Gets an URI string representing this entry's location.
+             */
+            readonly location: string;
+
+            /**
+            * Determines whether this entry exists in the underlying storage.
+            * @param path The path to test.
+            */
+            existsAsync(): Promise<boolean>;
+
+            /**
+             * Gets a `StorageEntry` representing a child element with the specified name and type.
+             * 
+             * Calling this method doesn't invole any I/O.
+             * @param name
+             * @param type
+             */
+            child(name: string, type: StorageEntryType): StorageEntry;
+
+            /**
+             * Retrieves `StorageEntry`s for the child elements of the current entry.
+             */
+            childrenAsync(): Promise<StorageEntry[]>;
+
+            /**
+             * Creates this storage entry in the underlying storage (for example, creates a directory).
+             */
+            createAsync(): Promise<void>;
+
+            /**
+             * Deletes this storage entry in the underlying storage.
+             */
+            deleteAsync(): Promise<void>;
+
+            /**
+             * Reads all text from the storage entry, using UTF-8 encoding (or if decoding fails, using ISO-8859-1).
+             */
+            readAllTextAsync(): Promise<string>;
+
+            /**
+             * Reads all bytes from the storage entry.
+             */
+            readAllBytesAsync(): Promise<ArrayBuffer>;
+
+            /**
+             * Writes the specified text to the storage entry, using UTF-8 encoding.
+             * @param content
+             * @param includeBom `true` to include a UTF-8 Byte Order Mark, `false` otherwise. The default is `false`.
+             * @param failIfExists `true` to throw an exception if the storage entry already exists, `false` to overwrite it in that case. The default is `false`.
+             */
+            writeAllTextAsync(content: string, includeBom?: boolean, failIfExists?: boolean): Promise<void>;
+
+            /**
+             * 
+             * Writes the bytes in the specified `ArrayBuffer` to the file.
+             * @param content
+             * @param failIfExists `true` to throw an exception if the storage entry already exists, `false` to overwrite it in that case. The default is `false`.
+             */
+            writeAllBytesAsync(content: ArrayBuffer, failIfExists?: boolean): Promise<void>;
+        }
+
+        abstract class Storage implements Closeable {
+            // Declare a unused private variable to enforce nominal typing.
+            private _;
+
+            /**
+             * Gets the URI scheme used by this `Storage`.
+             */
+            readonly scheme: string;
+
+            /**
+             * Opens the storage, which may involve creating a network connection to the target.
+             */
+            openAsync(): Promise<void>;
+
+            /**
+             * Closes the storage. After calling this method, `StorageEntry` objects retrieved from this `Storage` may no longer be used.
+             */
+            closeAsync(): Promise<void>;
+
+            /**
+             * Gets a `StorageEntry` from this storage using the specified URI.
+             * @param uri The entry URI. The URI can be generated using the `getUri()` method of the corresponding `Storage` subclass.
+             * @param type
+             */
+            getEntry(uri: string, type: StorageEntryType): StorageEntry;
+        }
+
+        /**
+         * Implements an FTP-based storage. While the storage is opened, it will hold a FTP connection to the specified server.
+         * 
+         * Note: There can only ever be a single async operation in progress at any point in time on the `Storage` itself or any `StorageEntry` instances that originate from this `Storage`.
+         */
+        class FtpStorage extends Storage {
+            constructor(hostname: string, port?: number | null, username?: string | null, password?: string | null);
+
+            /**
+             * Gets a URI from the specified FTP path that is suitable for passing it to `Storage.getEntry()`.
+             * @param path The file or directory path. It must start with a forward slash (`/`).
+             */
+            getUri(path: string): string;
+        }
+    }
 }
 
 
@@ -1270,7 +1485,9 @@ declare namespace net {
          * Asynchronously reads a chunk of the next message, limited by `length`, reading as much as possible before returning.
          * 
          * If the returned string's length is smaller than the `length` argument, the current message is completed.
-         * If the return value is `null`, the WebSocket has been closed, or a message of an unsupported type has been received.
+         * If the return value is `null`, the WebSocket has been closed.
+         * 
+         * Currently, only text messages are supported. When receiving a binary message, this method will throw.
          * 
          * Note: You can call this method while a `sendAsync` operation is still in progress.
          * @param length The number of characters to read.
@@ -1297,13 +1514,55 @@ declare namespace net {
      * @param routePath The route path to register.
      * @param asyncHandler The handler for the request.
      */
-    function registerHttpRoute(routePath: string, asyncHandler: (context: HttpContext) => Promise<void> /* , suppressCorsHeader?: boolean */): void;
+    function registerHttpRoute(routePath: string, asyncHandler: (context: HttpContext) => Promise<void>, options?: {
+        /*
+         * Specifies whether user authentication is performed when processing the request. The default is `"none"`.
+         * For `"none"`, the `HttpContext.user` property will be `null`; otherwise, the property will contain a `HttpUser` object with information about the authenticated (or anonymous) user.
+         * 
+         * - `"none"`: No user authentication is performed.
+         * - `"optional"`: User authentication is performed if a token is provided. If it fails or no token was provided, an anonymous user is assumed. 
+         * - `"mandatory"`: User authentication is always performed; if it fails or no token was provided, the request is rejected with a HTTP 403 status.
+         * 
+         * In order to authenticate, a client can retrieve an access token from the REST Interface v2 using the `/api/rest/users/authenticate` endpoint, and then send the retrieved token in a `Authorization: Bearer <token>` HTTP header.
+         */
+        authentication?: "none" | "optional" | "mandatory";
+        // suppressCorsHeader?: boolean;
+    }): void;
 
     /**
      * Unregisters a HTTP route that was previously registered with registerHttpRoute().
      * @param routePath
      */
     function unregisterHttpRoute(routePath: string): void;
+
+    interface HttpUser {
+        /**
+         * Determines whether the current user is in the specified user group.
+         * @param name The name of the user group.
+         */
+        isInGroup(name: string): boolean;
+
+        /**
+         * Specifies whether this is the Admin user.
+         */
+        readonly isAdmin: boolean;
+
+        /**
+         * Specifies whether this is the anonymous user (which means the user wasn't authenticated).
+         */
+        readonly isAnonymous: boolean;
+
+        /**
+         * The ID of the user. This will be `null` for the Admin user (when `isAdmin` is `true`).
+         */
+        readonly id: number | null;
+        /**
+         * The login name of the user. This will be `null` for the Admin user and anonymous user (when `isAdmin` is `true` or `isAnonymous` is `true`).
+         */
+        readonly loginName: string | null;
+        readonly loginEmail: string | null;
+        readonly loginPhoneNumber: string | null;
+    }
 
     class HttpContext implements io.Closeable {
         // Declare a private constructor to prevent constructing the class.
@@ -1318,6 +1577,12 @@ declare namespace net {
          * The `HttpResponse` object that represents the response to be sent to the client.
          */
         readonly response: HttpResponse;
+
+        /**
+         * The authenticated or anonymous user associated with this request, or `null` if authentication has been set to `"none"` for the route.
+         * If the user isn't authenticated, the `HttpUser.isAnonymous` property will be `true`.
+         */
+        readonly user: HttpUser | null;
 
         /**
          * Specifies if this request is a WebSocket request that can be accepted with `acceptWebSocketAsync`.
@@ -1421,14 +1686,14 @@ declare namespace net {
 
     /**
      * Contains methods that allow to send HTTP requests to a server.
-     **/
+     */
     namespace httpClient {
         type ContentHeaders = {
             /**
              * The MIME type (possibly including a charset for text types) of the content.
              * 
              * For example, a JSON content could specify the content type `"application/json"`.
-             **/
+             */
             "content-type"?: string;
             "last-modified"?: string;
             expires?: string;
@@ -1450,7 +1715,7 @@ declare namespace net {
         interface HttpContent {
             /**
              * The HTTP headers associated with the content that are to be sent to the server.
-             **/
+             */
             readonly headers?: ContentHeaders;
 
             /**
@@ -1460,27 +1725,34 @@ declare namespace net {
              * * The string body will always be encoded using UTF-8.
              * * If you don't specify a `content-type` header in the `headers` object, `"text/plain; charset=utf-8"` will be used.
              * * If you specify a custom `content-type` header for a text MIME type, you should append the string `"; charset=utf-8"` to indicate the UTF-8 encoding to the server.
-             **/
+             */
             readonly body: string;
         }
 
         interface HttpContentReceived extends HttpContent {
             /**
              * The HTTP headers associated with the content that were received from the server. The keys are stored lower case (e.g. `"content-type"`).
-             **/
+             */
             readonly headers: ContentHeaders;
         }
 
         interface HttpRequestMessage {
             /**
              * The URL used for the HTTP request.
-             **/
+             */
             readonly url: string;
 
             /**
              * The HTTP method to use for the request. The default is `"GET"`.
-             **/
+             */
             readonly method?: "DELETE" | "GET" | "HEAD" | "OPTIONS" | "PATCH" | "POST" | "PUT" | "TRACE";
+
+            /**
+             * When `true`, an "Expect: 100-Continue" header is added when sending the request. The default is `false`.
+             * 
+             * This allows the client to handle the case when sending a request which includes a body, but the server sends a response after reading the request headers but before reading the request body, which otherwise could lead to a deadlock in certain cases (as the client might only start to read the response once it completely sent the request body).
+             */
+            readonly expectContinue?: boolean;
 
             /**
              * The HTTP request headers to be sent to the server.
@@ -1488,34 +1760,43 @@ declare namespace net {
              * Note: Headers that belong to the content (like `Content-Type`) must not be set here, but instead in the `headers` object of the `content` object.
              * 
              * Note: When you want to provide multiple values for a header, you can use a line feed (\n) character to delimit the values.
-             **/
+             */
             readonly headers?: RequestHeaders;
 
             /**
              * The content of the HTTP request to be sent to the server.
              * 
              * Note: A content can only be used with HTTP methods that allow a content to be sent (like POST).
-             **/
+             */
             readonly content?: HttpContent;
         }
 
         interface HttpResponseMessage {
             /**
              * The status code of the HTTP response received from the server.
-             **/
+             */
             readonly statusCode: number;
 
             /**
              * The HTTP response headers received from the server. The keys are stored in lower case.
              * 
              * Note: Headers that belong to the content (like `Content-Type`) are not stored here, but instead in the `headers` object of the `content` object.
-             **/
+             */
             readonly headers: ResponseHeaders;
 
             /**
              * The content of the HTTP response received from the server.
-             **/
+             */
             readonly content?: HttpContentReceived;
+        }
+
+        interface HttpOptions {
+            /**
+             * When `true`, specifies that SSL/TLS errors (e.g. when the certificate cannot be validated) for `https` requests are ignored. The default is `false`.
+             * 
+             * This can be useful for testing purposes, but note that this means the connection will be **insecure**.
+             */
+            readonly ignoreSslErrors?: boolean;
         }
 
         interface RawWebSocket extends net.RawWebSocket, io.Closeable {
@@ -1535,38 +1816,74 @@ declare namespace net {
          * 
          * Example (sending a POST request to the Codabix REST API):
          * ```ts
-         *let result = await net.httpClient.sendAsync({
-         *    url: "http://localhost:8181/api/json",
-         *    method: "POST",
-         *    content: {
-         *        headers: {
-         *            "content-type": "application/json"
-         *        },
-         *        body: JSON.stringify({
-         *            username: "demo@user.org",
-         *            password: codabix.security.decryptPassword("<encrypted-password>"),
-         *            browse: {
-         *                na: "/Nodes"
-         *            }
-         *        })
-         *    }
-         *});
-         *
-         *if (result.content) {
-         *    let jsonResult = JSON.parse(result.content.body);
-         *    // TODO: Process JSON result...
-         *}  
+         * let result = await net.httpClient.sendAsync({
+         *     url: "http://localhost:8181/api/json",
+         *     method: "POST",
+         *     content: {
+         *         headers: {
+         *             "content-type": "application/json"
+         *         },
+         *         body: JSON.stringify({
+         *             username: "demo@user.org",
+         *             password: codabix.security.decryptPassword("<encrypted-password>"),
+         *             browse: {
+         *                 na: "/Nodes"
+         *             }
+         *         })
+         *     }
+         * });
+         * 
+         * if (result.content) {
+         *     let jsonResult = JSON.parse(result.content.body);
+         *     // TODO: Process JSON result...
+         * }  
          * ```
          * @param request The HTTP request to be sent.
          * @param ensureSuccessStatusCode `true` to throw when the response status code doesn't indicate success, `false` otherwise. The default is `true`.
+         * @param options Options for the HTTP connection, for example to ignore SSL/TLS certificate errors.
          */
-        function sendAsync(request: HttpRequestMessage, ensureSuccessStatusCode?: boolean): Promise<HttpResponseMessage>;
+        function sendAsync(request: HttpRequestMessage, ensureSuccessStatusCode?: boolean, options?: HttpOptions): Promise<HttpResponseMessage>;
 
         /**
          * Asynchronously connects to a WebSocket server using the specified URL.
          * @param url The web socket URL. It must begin with `ws:` or `wss:`.
          */
         function connectWebSocketAsync(url: string): Promise<RawWebSocket>;
+    }
+
+    /**
+     * Contains methods that allow to send an ICMP echo request.
+     */
+    namespace ping {
+        interface PingReply {
+            /**
+             * The IP address of the host that sent the reply.
+             * 
+             * It can be `"0.0.0.0"` (for IPv4) or the IPv6 "none" address in a format 
+             * like `"::"` or `"0:0:0:0:0:0:0:0"` when no host sent a reply.
+             */
+            readonly address: string;
+
+            /**
+             * The round tip time in milliseconds.
+             * 
+             * Note: This property will be `0` when `status` is not `"success"`.
+             */
+            readonly roundtripTime: number;
+
+            /**
+             * The result of the operation. Any value other than `"success"` indicates
+             * a failure.
+             */
+            readonly status: "success" | "timedOut" | "unknown";
+        }
+
+        /**
+         * Sends an ICMP echo request to the specified host and receives a
+         * corresponding ICMP echo reply.
+         * @param host A host name or IP address that indicates the destination machine.
+         */
+        function sendAsync(host: string): Promise<PingReply>;
     }
 }
 
@@ -1625,20 +1942,37 @@ declare namespace runtime {
      * Stores a shutdown handler that will be called when the script is to be stopped, e.g. because the Codabix Engine is shutting down, or the user has set the script to 'Disabled'.
      * 
      * Note: You don't need to release resources or remove event handlers in this method – this will be done automatically when the script is stopped.
-     **/
+     */
     export let onShutdown: (() => void) | null;
 
     /**
      * Contains additional date-related functionality.
-     **/
+     */
     namespace date {
         /**
-         * Formats a date using the specified .NET DateTime format string.
+         * Formats a date using the specified .NET `DateTime` format string.
          * @param date The Date object (or the date number) which should be formatted.
-         * @param format The format specifier. For more information, see https://docs.microsoft.com/en-us/dotnet/standard/base-types/standard-date-and-time-format-strings and https://docs.microsoft.com/en-us/dotnet/standard/base-types/custom-date-and-time-format-strings
+         * @param format The .NET `DateTime` format string. For more information, see https://learn.microsoft.com/dotnet/standard/base-types/standard-date-and-time-format-strings and https://learn.microsoft.com/dotnet/standard/base-types/custom-date-and-time-format-strings
          * @param invariantCulture `true` to format the date using the invariant culture; `false` to format it using the local culture. The default is `false`.
          * @param utcTime `true` to format the date as UTC time; `false` to format it as local time. The default is `false`.
          */
         function format(date: Date | number, format: string, invariantCulture?: boolean, utcTime?: boolean): string;
+    }
+
+    /**
+     * Contains functionality for converting values.
+     */
+    namespace convert {
+        /**
+         * Converts a Base64 string into an `ArrayBuffer`.
+         * @param s The Base64 string that is to be converted.
+         */
+        function fromBase64String(s: string): ArrayBuffer;
+
+        /**
+         * Converts the contents of an `ArrayBuffer` to a Base64 string.
+         * @param buffer The ArrayBuffer whose contents are to be converted.
+         */
+        function toBase64String(buffer: ArrayBuffer): string;
     }
 }
