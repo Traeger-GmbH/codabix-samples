@@ -1,8 +1,10 @@
+// Copyright (c) Traeger Industry Components GmbH. All Rights Reserved.
+// 
 // A script that creates some nodes in the "Demo Nodes" folder and then
 // continuously writes random numbers to them. This is the same logic
 // that is done by the "Demo Data (Continuous)" plugin (but using a different
 // folder name).
-
+// 
 interface DemoNodeDescription {
     name: string;
     displayName: string;
