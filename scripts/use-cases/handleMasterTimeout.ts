@@ -16,18 +16,22 @@ runtime.handleAsync(async function () {
         }
     });
 
+    let timerHandle : number | null = null;
+
     function handleMasterTimeout()
     {
+        // Clear the handle as it will no longer be valid after the callback has been called.
+        timerHandle = null;
+
         // TODO: Implement operations to perform "master lost" tasks.
     }
-
-    let timerHandle : number | null = null;
 
     function resetTimer()
     {
         if (timerHandle != null) {
             // Reset timer, because the "master" did execute some task.
             timer.clearTimeout(timerHandle);
+            timerHandle = null;
         }
 
         timerHandle = timer.setTimeout(handleMasterTimeout, 5000 /* ms */);
