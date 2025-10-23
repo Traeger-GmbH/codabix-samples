@@ -17,21 +17,21 @@ runtime.handleAsync(async function () {
         NotSupported
     }
 
-    function addChildNodeIfNotExist(parent: codabix.Node, name: string, nodeType: codabix.NodeTypeEnum, valueType: codabix.TypeCodeEnum | null): void {
-        if (nodeType == codabix.NodeTypeEnum.Value && valueType == null) {
+    function addChildNodeIfNotExist(parent: codabix.Node, name: string, nodeType: codabix.NodeClassEnum, valueType: codabix.TypeCodeEnum | null): void {
+        if (nodeType == codabix.NodeClassEnum.Value && valueType == null) {
             throw "Creating a value node requires a value type to be set.";
         }
         if (!parent.children.some(node => node.name == name)) {
-            if (nodeType == codabix.NodeTypeEnum.Value) {
-                codabix.createNode({ name: name, type: nodeType, parentIdentifier: parent.identifier, valueType: codabix.Type.getType(valueType!) });
+            if (nodeType == codabix.NodeClassEnum.Value) {
+                codabix.createNode({ name: name, class: nodeType, parentIdentifier: parent.identifier, valueType: codabix.Type.getType(valueType!) });
             }
             else {
-                codabix.createNode({ name: name, type: nodeType, parentIdentifier: parent.identifier });
+                codabix.createNode({ name: name, class: nodeType, parentIdentifier: parent.identifier });
             }
         }
     }
 
-    function addPropertyNodes(transferNode: codabix.Node, properties: Array<{ name: string, nodeType: codabix.NodeTypeEnum, valueType: codabix.TypeCodeEnum | null }>): void {
+    function addPropertyNodes(transferNode: codabix.Node, properties: Array<{ name: string, nodeType: codabix.NodeClassEnum, valueType: codabix.TypeCodeEnum | null }>): void {
         properties.forEach(property => addChildNodeIfNotExist(transferNode, property.name, property.nodeType, property.valueType));
     }
 
@@ -270,7 +270,7 @@ runtime.handleAsync(async function () {
 
         private initializeItems(): void {
             this._node.children.forEach((child) => {
-                if (child.type == codabix.NodeTypeEnum.Value) {
+                if (child.class == codabix.NodeClassEnum.Value) {
                     let trigger = new Trigger(child, this.handleTriggerEvent);
                     this._items.push(trigger);
                 }
@@ -366,18 +366,18 @@ runtime.handleAsync(async function () {
             }
         }
 
-        public static propertyList: Array<{ name: string, nodeType: codabix.NodeTypeEnum, valueType: codabix.TypeCodeEnum | null, defaultValue: codabix.NodeValueType }> = [
-            { name: "Inputs", nodeType: codabix.NodeTypeEnum.Folder, valueType: null, defaultValue: null },
-            { name: "Outputs", nodeType: codabix.NodeTypeEnum.Folder, valueType: null, defaultValue: null },
-            { name: "Triggers", nodeType: codabix.NodeTypeEnum.Folder, valueType: null, defaultValue: null },
-            { name: "isActive", nodeType: codabix.NodeTypeEnum.Value, valueType: codabix.TypeCodeEnum.Boolean, defaultValue: false },
+        public static propertyList: Array<{ name: string, nodeType: codabix.NodeClassEnum, valueType: codabix.TypeCodeEnum | null, defaultValue: codabix.NodeValueType }> = [
+            { name: "Inputs", nodeType: codabix.NodeClassEnum.Folder, valueType: null, defaultValue: null },
+            { name: "Outputs", nodeType: codabix.NodeClassEnum.Folder, valueType: null, defaultValue: null },
+            { name: "Triggers", nodeType: codabix.NodeClassEnum.Folder, valueType: null, defaultValue: null },
+            { name: "isActive", nodeType: codabix.NodeClassEnum.Value, valueType: codabix.TypeCodeEnum.Boolean, defaultValue: false },
         ];
 
         private static collectChildrenRecursively(node: codabix.Node): codabix.Node[] {
             let collectedChildren: codabix.Node[] = [];
 
             for (let child of node.children) {
-                if (child.type == codabix.NodeTypeEnum.Folder) {
+                if (child.class == codabix.NodeClassEnum.Folder) {
                     // Recursively collect the child nodes of the folder.
                     collectedChildren = collectedChildren.concat(
                         Transfer.collectChildrenRecursively(child));
@@ -584,7 +584,7 @@ runtime.handleAsync(async function () {
 
                     let transferNodeStructure: codabix.CreateNodeStructure = {
                         name: name,
-                        type: codabix.NodeTypeEnum.Folder,
+                        class: codabix.NodeClassEnum.Folder,
                         parentIdentifier: node.identifier,
                     }
 
