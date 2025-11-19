@@ -13,7 +13,7 @@ runtime.handleAsync(async function () {
     let methodNode = codabix.findNode("/Nodes/HelloWorld", true);
 
     methodNode.registerCommand({
-        executeAsync(context: codabix.NodeCommandContext): Promise<void> {
+        executeAsync(): Promise<void> {
             logger.log(`Hello World!`);
             return Promise.resolve();
         }

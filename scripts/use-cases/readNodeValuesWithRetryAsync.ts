@@ -39,5 +39,6 @@ runtime.handleAsync(async function () {
     let node2 = codabix.findNode("/Nodes/B", true);
     let node3 = codabix.findNode("/Nodes/C", true);
 
+    // TODO: Use the values.
     let values = await readNodeValuesWithRetryAsync([node1, node2, node3]);
 }());

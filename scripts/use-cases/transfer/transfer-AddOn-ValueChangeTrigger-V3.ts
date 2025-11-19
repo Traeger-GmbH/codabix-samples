@@ -40,7 +40,7 @@ runtime.handleAsync(async function () {
     // Add a NodeChangeCompleted listener that, when previously one of the value
     // change listeners was called, writes False (and then True) to the boolean node, in order
     // to raise a Boolean trigger for a Transfer.
-    codabix.addNodeChangeCompletedEventListener(e => {
+    codabix.addNodeChangeCompletedEventListener(() => {
         for (let index = 0; index < instancesNodeValueChanged.length; index++) {
             if (instancesNodeValueChanged[index]) {
                 instancesNodeValueChanged[index] = false;

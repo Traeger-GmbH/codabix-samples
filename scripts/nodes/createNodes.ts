@@ -7,10 +7,10 @@ runtime.handleAsync(async function () {
     let nodeNames = [ "first", "second" ];
 
     for (let i = 0; i < nodeNames.length; i++) {
-        let newNode = codabix.createNode({
+        codabix.createNode({
                 name: nodeNames[i],
                 parentIdentifier: parentNode.identifier,
-                type: codabix.NodeTypeEnum.Value,
+                class: codabix.NodeClassEnum.Value,
                 valueType: codabix.Types.int32
         });
     }

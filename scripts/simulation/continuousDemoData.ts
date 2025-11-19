@@ -51,7 +51,7 @@ runtime.handleAsync(async function () {
         parentNode = codabix.createNode({
             name: parentFolderName,
             parentIdentifier: root.identifier,
-            type: codabix.NodeTypeEnum.Folder,
+            class: codabix.NodeClassEnum.Folder,
         });
     }
 
@@ -65,7 +65,7 @@ runtime.handleAsync(async function () {
                 name: demoNodeDescription.name,
                 displayName: demoNodeDescription.displayName,
                 parentIdentifier: parentNode.identifier,
-                type: codabix.NodeTypeEnum.Value,
+                class: codabix.NodeClassEnum.Value,
                 valueType: codabix.Types.double,
                 historyOptions: demoNodeDescription.hasHistory ?
                     codabix.NodeHistoryOptions.Subscription | codabix.NodeHistoryOptions.ValueChange :

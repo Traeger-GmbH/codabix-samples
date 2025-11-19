@@ -145,17 +145,17 @@ runtime.handleAsync(async function () {
             logger.logDebug(this.logPrefix + message);
         }
 
-        private logInfo(message: string): void {
-            logger.logInfo(this.logPrefix + message);
-        }
+        // private logInfo(message: string): void {
+        //     logger.logInfo(this.logPrefix + message);
+        // }
 
         private logError(message: string): void {
             logger.logError(this.logPrefix + message);
         }
 
-        private logWarning(message: string): void {
-            logger.logWarning(this.logPrefix + message);
-        }
+        // private logWarning(message: string): void {
+        //     logger.logWarning(this.logPrefix + message);
+        // }
 
         private get value(): codabix.NodeValueType {
             if (this._node.value != null) {
@@ -420,9 +420,15 @@ runtime.handleAsync(async function () {
             }
         }
 
-        private get _children(): { [key: string]: codabix.Node } {
+        private get _children() {
             // we have to create this for every call to get the current array of children nodes
-            return normalizeArray(this._node.children, "name");
+            return normalizeArray(this._node.children, "name") as { 
+                [key: string]: codabix.Node; 
+                isActive: codabix.Node; 
+                Inputs: codabix.Node; 
+                Outputs: codabix.Node; 
+                Triggers: codabix.Node; 
+            };
         }
 
         private get isActive(): boolean {
@@ -621,7 +627,7 @@ runtime.handleAsync(async function () {
     }
 
     function getNewTransfers(currentTransferNodes: codabix.Node[]) {
-        currentTransferNodes.forEach((node, index) => {
+        currentTransferNodes.forEach(node => {
             if (!(typeof node.path == "string" && node.path.toLowerCase() === 'group')) {
                 if (!transferList.some((element: Transfer) => element.node == node)) {
                     try {

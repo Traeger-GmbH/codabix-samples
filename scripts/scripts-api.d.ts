@@ -164,12 +164,13 @@ declare namespace codabix {
         Variant = 150
     }
 
-    enum NodeTypeEnum {
+    enum NodeClassEnum {
         Folder = 0,
         Directory = 1,
         Method = 2,
         File = 100,
-        Value = 1000
+        Value = 1000,
+        NodeType = 2000
     }
 
     enum NodeHistoryOptions {
@@ -263,7 +264,7 @@ declare namespace codabix {
         path?: NodePathType;
         pathType?: Type | null;
         parentIdentifier?: NodeIdentifier | null;
-        type?: NodeTypeEnum;
+        class?: NodeClassEnum;
         valueType?: Type | null;
         historyOptions?: NodeHistoryOptions;
         historyInterval?: number | null;
@@ -281,7 +282,7 @@ declare namespace codabix {
     interface CreateNodeStructure extends NodeStructure {
         name: string;
         parentIdentifier: NodeIdentifier | null;
-        type: NodeTypeEnum;
+        class: NodeClassEnum;
     }
 
     interface NodeReader {
@@ -341,6 +342,8 @@ declare namespace codabix {
     }
 
     interface NodeCommandContext {
+        readonly node: Node;
+
         readonly inputArguments: readonly Readonly<NodeArgument>[] & {
             /**
              * Gets the input argument with the specified name, or returns `undefined` if it cannot be found.
@@ -661,6 +664,7 @@ declare namespace codabix {
         readonly displayName: string | null;
         readonly description: string | null;
         readonly location: string | null;
+        readonly class: NodeClassEnum;
         readonly minValue: number | null;
         readonly maxValue: number | null;
         readonly hysteresis: number | null;
@@ -679,7 +683,6 @@ declare namespace codabix {
          */
         readonly path: NodePathType;
         readonly pathType: Type | null;
-        readonly type: NodeTypeEnum;
         readonly valueType: Type | null;
         readonly position: number;
         readonly token: string;
@@ -813,17 +816,26 @@ declare namespace codabix {
 
     /**
      * Executes a "synchronous read" on the specified nodes, returning the values asynchronously.
+     * 
      * For nodes for which a node reader has been registered, their values are guaranteed to be physically read from the underlying device after the point in time when this method has been invoked.
+     * Additionally, the convention for node readers is that they internally write the read values (that will be returned) into the corresponding nodes before the read completes.
      *
-     * Returns a Promise which will be resolved with an array of node values where each value corresponds to the node in the supplied array.
+     * Returns a `Promise` which will be resolved with an array of node values where each value corresponds to the node in the supplied array.
+     * 
+     * Note: The returned `Promise` will be resolved after the values were read, but this can mean that at this time, the nodes may already contain newer values resulting from a different read than the current one. This can be important for specific scenarios like in the SQL Exchange Plugin, where the read result depends on a SQL Expression. In such a case, the returned values should always be used, instead of accessing the current `codabix.Node.value` after the `Promise` is resolved.
      * @param nodes The nodes which should be read.
      */
     function readNodeValuesAsync(...nodes: Node[]): Promise<(NodeValue | null)[]>;
+
     /**
      * Executes a "synchronous read" on the specified nodes, returning the values asynchronously.
+     * 
      * For nodes for which a node reader has been registered, their values are guaranteed to be physically read from the underlying device after the point in time when this method has been invoked.
+     * Additionally, the convention for node readers is that they internally write the read values (that will be returned) into the corresponding nodes before the read completes.
      *
-     * Returns a Promise which will be resolved with an array of node values where each value corresponds to the node in the supplied array.
+     * Returns a `Promise` which will be resolved with an array of node values where each value corresponds to the node in the supplied array.
+     * 
+     * Note: The returned `Promise` will be resolved after the values were read, but this can mean that at this time, the nodes may already contain newer values resulting from a different read than the current one. This can be important for specific scenarios like in the SQL Exchange Plugin, where the read result depends on a SQL Expression. In such a case, the returned values should always be used, instead of accessing the current `codabix.Node.value` after the `Promise` is resolved.
      * @param nodes An array of nodes which should be read.
      */
     function readNodeValuesAsync(nodes: ArrayLike<Node>): Promise<(NodeValue | null)[]>;
@@ -845,7 +857,10 @@ declare namespace codabix {
     /**
      * Writes the specified values to the corresponding nodes asynchronously.
      * 
-     * Returns a Promise which will be fulfilled when the registered node writers report that the value has been written to the underlying device (or it will be fulfilled immediately if no node writers are registered).
+     * For nodes for which a node writer has been registered, the node writer may intercept the write in order to write the values into the underlying device and return a status that indicates whether the write was successful. Otherwise, if the write is not intercepted or no node writer has been registered, the values are written directly into the nodes, and a `Good` status is returned.
+     * The convention for node writers which intercept the write is that if and only if the values were written successfully into the underlying device (so a `Good` status will be returned), they internally write the specified values into the corresponding nodes before the write completes.
+     * 
+     * Returns a `Promise` which will be fulfilled when the registered node writers report that the value has been written to the underlying device (or it will be fulfilled immediately if no node writers are registered or the write was not intercepted).
      * @param nodeValues The values to write.
      */
     function writeNodeValuesAsync(...nodeValues: {
@@ -853,10 +868,14 @@ declare namespace codabix {
         value: NodeValueType | NodeValue,
         source?: boolean | number | string | object | null
     }[]): Promise<(NodeValueStatus | null)[]>;
+
     /**
      * Writes the specified values to the corresponding nodes asynchronously.
      * 
-     * Returns a Promise which will be fulfilled when the registered node writers report that the value has been written to the underlying device (or it will be fulfilled immediately if no node writers are registered).
+     * For nodes for which a node writer has been registered, the node writer may intercept the write in order to write the values into the underlying device and return a status that indicates whether the write was successful. Otherwise, if the write is not intercepted or no node writer has been registered, the values are written directly into the nodes, and a `Good` status is returned.
+     * The convention for node writers which intercept the write is that if and only if the values were written successfully into the underlying device (so a `Good` status will be returned), they internally write the specified values into the corresponding nodes before the write completes.
+     * 
+     * Returns a `Promise` which will be fulfilled when the registered node writers report that the value has been written to the underlying device (or it will be fulfilled immediately if no node writers are registered or the write was not intercepted).
      * @param nodeValues An array of values to write.
      */
     function writeNodeValuesAsync(nodeValues: {
@@ -868,7 +887,10 @@ declare namespace codabix {
     /**
      * Writes a value to the specified node asynchronously.
      * 
-     * Returns a Promise which will be fulfilled when the registered node writers report that the value has been written to the underlying device (or it will be fulfilled immediately if no node writers are registered).
+     * For nodes for which a node writer has been registered, the node writer may intercept the write in order to write the values into the underlying device and return a status that indicates whether the write was successful. Otherwise, if the write is not intercepted or no node writer has been registered, the values are written directly into the nodes, and a `Good` status is returned.
+     * The convention for node writers which intercept the write is that if and only if the values were written successfully into the underlying device (so a `Good` status will be returned), they internally write the specified values into the corresponding nodes before the write completes.
+     * 
+     * Returns a `Promise` which will be fulfilled when the registered node writers report that the value has been written to the underlying device (or it will be fulfilled immediately if no node writers are registered or the write was not intercepted).
      * @param node The node to which the values should be written.
      * @param value The value to write.
      */
@@ -876,9 +898,12 @@ declare namespace codabix {
 
     /**
      * Creates a new node.
+     * 
+     * When a node type template is specified, all child nodes of that node type and its base types will be created after creating the specified node.
      * @param nodeStructure The structure that specifies the properties of the node to create.
+     * @param nodeTypeTemplateIdentifier The optional node type to use as a template when creating the new node.
      */
-    function createNode(nodeStructure: CreateNodeStructure): Node;
+    function createNode(nodeStructure: CreateNodeStructure, nodeTypeIdentifier?: NodeQueryIdentifier | null): Node;
     /**
      * Updates the specified node. Only the properties which are actually specified in the structure will be updated.
      * @param node The node to update.
@@ -972,28 +997,30 @@ declare namespace timer {
     /**
      * Schedules repeated execution of the callback every `delay` milliseconds.
      * 
-     * Returns a TimerHandle for use with clearInterval().
+     * Returns a TimerHandle for use with `clearInterval()`.
      * @param callback The function which should be called back.
      * @param delay The delay in milliseconds.
      */
     function setInterval(callback: (this: void) => void, delay: number): number;
+
     /**
      * Sets a timeout after wich the handler is called once.
      * 
-     * Returns a TimerHandle for use with clearTimeout().
+     * Returns a TimerHandle for use with `clearTimeout()`. The handle is only valid until the specified callback is called. Once the callback returns, the handle becomes invalid and you must not pass it to `clearTimeout()`, as it may already belong to another timer.
      * @param callback The function which should be called back.
      * @param delay The delay in milliseconds.
      */
     function setTimeout(callback: (this: void) => void, delay: number): number;
 
     /**
-     * Cancels a timer that has been created with the setInterval() method.
-     * @param handle The handle returned by setInterval().
+     * Cancels a timer that has been created with the `setInterval()` method.
+     * @param handle The handle returned by `setInterval()`. After calling this function, the handle is no longer valid.
      */
     function clearInterval(handle: number): void;
+
     /**
-     * Cancels a timer that has been created with the setTimeout() method.
-     * @param handle The handle returned by setTimeout().
+     * Cancels a timer that has been created with the `setTimeout()` method, and whose callback has not been called yet.
+     * @param handle The handle returned by `setTimeout()`. After calling this function, the handle is no longer valid.
      */
     function clearTimeout(handle: number): void;
 
@@ -1464,6 +1491,53 @@ declare namespace io {
             getUri(path: string): string;
         }
     }
+
+    /**
+     * Represents a first-in, first-out collection of JSON-serialized objects stored in the local file system.
+     * The generic type parameter `T` may consist only of JSON-compatible members. However, note that the used generic type is not enforced when deserializing items, so you should ensure to not mix `DirectoryQueue<T>` instances with different generic type arguments on the same directory path.
+     * 
+     * Multiple async methods of a `DirectoryQueue` instance can be called at the same time, as the queue internally synchronizes access. However, this only works correctly if there are not multiple instances of the `DirectoryQueue<T>` at the same time using the same direcory path.
+     * 
+     * Because objects are stored in the local file system, they will be persisted even when the script is stopped and restarted; however, due to the blocking nature of file system operations, only async methods are available.
+     */
+    class DirectoryQueue<T> {
+        constructor(directoryPath: string);
+
+        /**
+         * Gets the directory path used to access the directory based queue.
+         */
+        readonly directoryPath: string;
+
+        /**
+         * Gets a value that indicates whether the queue is empty.
+         */
+        isEmptyAsync(): Promise<boolean>;
+
+        /**
+         * Gets the number of elements contained in the queue.
+         */
+        countAsync(): Promise<number>;
+
+        /**
+         * Adds an object to the end of the queue.
+         * @param item The object to add to the end of the queue.
+         */
+        enqueueAsync(item: T & runtime.AsJson<T>): Promise<void>;
+
+        // Note: We need to return `undefined` rather than `null` when no element is
+        // present, as otherwise it would not be possible to distinguish it from
+        // a deliberately added `null` value. This also matches the behavior of other
+        // JavaScript built-ins like Map.
+        /**
+         * Attempts to remove and return the object at the beginning of the queue. If no element is present in the queue, returns `undefined`.
+         */
+        dequeueAsync(): Promise<T | undefined>;
+
+        /**
+         * Attempts to return an object from the beginning of the queue without removing it. If no element is present in the queue, returns `undefined`.
+         */
+        peekAsync(): Promise<T | undefined>;
+    }
 }
 
 
@@ -1921,6 +1995,17 @@ declare const Guid: {
  * Contains functions to interact with the Script Runtime Environment.
  */
 declare namespace runtime {
+    /**
+     * A type that converts JSON-incompatible members to `never`. This can be used as `T & AsJson<T>` in positions where T would be accepted, to prevent using types as generic type argument with JSON-incompatible members.
+     */
+    // Note: This was taken from
+    // https://stackoverflow.com/questions/57858862/ensure-that-generic-type-only-has-primitive-properties-in-typescript#answer-57859435
+    type AsJson<T> =
+        T extends string | number | boolean | null ? T :
+        T extends Function ? never :
+        T extends object ? { [K in keyof T]: AsJson<T[K]> } :
+        never;
+
     /**
      * Handles the Promise object returned by an async function to ensure unhandled exceptions are not silently swallowed.
      * @param promise The `Promise` to handle.
