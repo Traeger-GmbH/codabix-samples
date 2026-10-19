@@ -31,6 +31,13 @@ runtime.handleAsync(async function () {
         class: codabix.NodeClassEnum.Value,
         valueType: myDataType
     });
+
+    // After creating the node, Codabix will also have created the data type
+    // (meaning it created a new codabix.Type instance containing an ID), so we
+    // need to retrieve it from the node (because we need to use the codabix.Type
+    // instance with the ID when writing a value).
+    myDataType = newNode.valueType!;
+    innerArrayType = myDataType.getFields().find(f => f.name == "Configs")!.fieldType!;
  
     let configs: codabix.Object[] = [];
     let config = new codabix.Object(innerArrayType);
