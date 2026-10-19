@@ -335,9 +335,13 @@ declare namespace codabix {
         subscriptionRemoved?(nodes: Node[]): void;
     }
 
-    interface NodeArgument {
+    interface NodeOutputArgument {
         readonly name: string;
         readonly type: Type;
+        value?: NodeValueType;
+    }
+
+    interface NodeArgument extends NodeOutputArgument {
         value: NodeValueType;
     }
 
@@ -403,11 +407,16 @@ declare namespace codabix {
          * @param name
          * @param displayName
          * @param description
-         * @param fieldType
+         * @param fieldType The field type, or `null` to specify the containing type as field type.
          */
-        constructor(name: string, displayName: string, description: string, fieldType: codabix.Type);
+        constructor(name: string, displayName: string, description: string, fieldType: codabix.Type | null);
 
-        readonly fieldType: codabix.Type;
+        /**
+         * The field type.
+         * 
+         * This can be `null` for `TypeField` instances that specify the containing type as field type, but have not yet been added to a `Type` instance with an identifier.
+         */
+        readonly fieldType: codabix.Type | null;
     }
 
     class Type {
@@ -945,9 +954,35 @@ declare namespace codabix {
 
     /**
      * Asynchronously executes the registered commands for the specified method node. The returned Promise object will be fulfilled (or rejected) when execution of the commands is finished.
+     * 
+     * If the method node has arguments, you should pass them using the `inputArguments` and `outputArguments` parameters.
+     * If not passed, they will be read from the `IN` nodes and written to the `OUT` nodes, but it can't be guaranteed that the values stored in the `OUT` nodes after the execution has finished belong to that execution.
+     * 
+     * Usage example:
+     * ```ts
+     * let method = codabix.findNode("/Nodes/MyMethod", true);
+     * 
+     * let inArg1: codabix.NodeArgument = {
+     *     name: "MyInput1",
+     *     type: codabix.Types.int32,
+     *     value: 123
+     * };
+     * 
+     * let outArg1: codabix.NodeOutputArgument = {
+     *     name: "MyOutput1",
+     *     type: codabix.Types.string
+     * };
+     * 
+     * await codabix.executeNodeCommandsAsync(method, [inArg1], [outArg1]);
+     * 
+     * let resultString = outArg1.value as string; 
+     * logger.log("Result: " + resultString);
+     * ```
      * @param identifier The node (or a value that identifies the node) whose commands should be executed.
+     * @param inputArguments The optional list of input arguments to pass. For arguments that are not in the list, the values will be read from the corresponding "IN" nodes.
+     * @param outputArguments The optional list of output arguments to pass. The resulting output values will be set in the `value` property of each passed argument before the `Promise` is resolved. For arguments that are not in the list, the values will be written to the corresponding "OUT" nodes before the `Promise` is resolved.
      */
-    function executeNodeCommandsAsync(identifier: NodeQueryIdentifier | Node): Promise<void>;
+    function executeNodeCommandsAsync(identifier: NodeQueryIdentifier | Node, inputArguments?: ArrayLike<NodeArgument>, outputArguments?: ArrayLike<NodeOutputArgument>): Promise<void>;
 
     /**
      * Creates a subscription for the specified nodes. This will notify registered NodeReaders so that they can start reading the value from the underlying device.
@@ -1493,12 +1528,14 @@ declare namespace io {
     }
 
     /**
-     * Represents a first-in, first-out collection of JSON-serialized objects stored in the local file system.
-     * The generic type parameter `T` may consist only of JSON-compatible members. However, note that the used generic type is not enforced when deserializing items, so you should ensure to not mix `DirectoryQueue<T>` instances with different generic type arguments on the same directory path.
-     * 
-     * Multiple async methods of a `DirectoryQueue` instance can be called at the same time, as the queue internally synchronizes access. However, this only works correctly if there are not multiple instances of the `DirectoryQueue<T>` at the same time using the same direcory path.
-     * 
+     * Represents a first-in, first-out collection of JSON-serialized objects, each stored as a separate file in a directory on the local file system.
+     * The generic type parameter `T` may consist only of JSON-compatible members. However, note that the generic type is not enforced when deserializing items, so you should ensure not to mix `DirectoryQueue<T>` instances with different generic type arguments on the same directory path.
+     *
+     * Multiple async methods of a `DirectoryQueue` instance can be called at the same time, as the queue internally synchronizes access. However, this only works correctly if no other `DirectoryQueue<T>` instance uses the same directory path at the same time.
+     *
      * Because objects are stored in the local file system, they will be persisted even when the script is stopped and restarted; however, due to the blocking nature of file system operations, only async methods are available.
+     *
+     * Note: Items are written as plain files without transactional guarantees. If writing an item is interrupted (e.g. due to a power failure or the process being terminated unexpectedly), the queue may afterwards contain incomplete or corrupted items. If you need consistency in such cases, or if multiple instances need to access the same queue, use `DatabaseQueue<T>` instead.
      */
     class DirectoryQueue<T> {
         constructor(directoryPath: string);
@@ -1507,6 +1544,57 @@ declare namespace io {
          * Gets the directory path used to access the directory based queue.
          */
         readonly directoryPath: string;
+
+        /**
+         * Gets a value that indicates whether the queue is empty.
+         */
+        isEmptyAsync(): Promise<boolean>;
+
+        /**
+         * Gets the number of elements contained in the queue.
+         */
+        countAsync(): Promise<number>;
+
+        /**
+         * Adds an object to the end of the queue.
+         * @param item The object to add to the end of the queue.
+         */
+        enqueueAsync(item: T & runtime.AsJson<T>): Promise<void>;
+
+        // Note: We need to return `undefined` rather than `null` when no element is
+        // present, as otherwise it would not be possible to distinguish it from
+        // a deliberately added `null` value. This also matches the behavior of other
+        // JavaScript built-ins like Map.
+        /**
+         * Attempts to remove and return the object at the beginning of the queue. If no element is present in the queue, returns `undefined`.
+         */
+        dequeueAsync(): Promise<T | undefined>;
+
+        /**
+         * Attempts to return an object from the beginning of the queue without removing it. If no element is present in the queue, returns `undefined`.
+         */
+        peekAsync(): Promise<T | undefined>;
+    }
+
+    /**
+     * Represents a first-in, first-out collection of JSON-serialized objects stored in a SQLite database file on the local file system.
+     * The generic type parameter `T` may consist only of JSON-compatible members. However, note that the generic type is not enforced when deserializing items, so you should ensure not to mix `DatabaseQueue<T>` instances with different generic type arguments on the same database file path.
+     *
+     * Each operation is atomic: An item is either enqueued or dequeued completely or not at all, even if the operation is interrupted (e.g. due to a power failure or the process being terminated unexpectedly). Once `enqueueAsync()` or `dequeueAsync()` has completed, the change is persisted, provided that the storage device correctly writes its cache to disk.
+     *
+     * All methods can be called at the same time, also from multiple `DatabaseQueue<T>` instances (e.g. in different scripts) using the same database file path, as access is synchronized using the database's file locks. Each item is returned by `dequeueAsync()` only once.
+     *
+     * Because objects are stored in the local file system, they will be persisted even when the script is stopped and restarted; however, due to the blocking nature of file system operations, only async methods are available.
+     *
+     * Note: Compared to `DirectoryQueue<T>`, each operation takes longer, as every change is written through to the storage device. The database file should not be located on a network drive, as file locking may not work reliably there.
+     */
+    class DatabaseQueue<T> {
+        constructor(databaseFilePath: string);
+
+        /**
+         * Gets the database file path used by the queue.
+         */
+        readonly databaseFilePath: string;
 
         /**
          * Gets a value that indicates whether the queue is empty.
@@ -2042,6 +2130,19 @@ declare namespace runtime {
          * @param utcTime `true` to format the date as UTC time; `false` to format it as local time. The default is `false`.
          */
         function format(date: Date | number, format: string, invariantCulture?: boolean, utcTime?: boolean): string;
+    }
+
+    /**
+     * Contains additional number-related functionality.
+     */
+    namespace number {
+        /**
+         * Formats a number value using the specified .NET numeric format string.
+         * @param value The number value which should be formatted.
+         * @param format The .NET numeric format string for `Double` values. For more information, see https://learn.microsoft.com/dotnet/standard/base-types/standard-numeric-format-strings and https://learn.microsoft.com/dotnet/standard/base-types/custom-numeric-format-strings
+         * @param invariantCulture `true` to format the number using the invariant culture; `false` to format it using the local culture. The default is `false`.
+         */
+        function format(value: number, format: string, invariantCulture?: boolean): string;
     }
 
     /**
